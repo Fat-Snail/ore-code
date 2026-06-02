@@ -1,23 +1,67 @@
-# Ore Code
+<p align="center">
+  <img src="./apps/desktop/src-tauri/icons/128x128.png" alt="Ore Code icon" width="96" height="96">
+</p>
 
-[简体中文](./README.zh-CN.md)
+<h1 align="center">Ore Code</h1>
 
-Ore Code is a DeepSeek-first desktop coding agent workbench built with Tauri, React, TypeScript, and Rust. It focuses on long-context coding workflows, structured tool execution, local project context, MCP integrations, skills, automation, and cross-platform desktop behavior for macOS and Windows.
+<p align="center">
+  <strong>DeepSeek-first desktop coding agent workbench.</strong>
+</p>
 
-> Status: pre-release. This repository is source-available under the MIT License.
+<p align="center">
+  Long-context coding, structured tool execution, local project context, MCP integrations, skills, automation, and a native desktop shell for macOS and Windows.
+</p>
+
+<p align="center">
+  <a href="https://github.com/233i/ore-code/releases"><img alt="Release" src="https://img.shields.io/github/v/release/233i/ore-code?include_prereleases&style=flat-square"></a>
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/233i/ore-code?style=flat-square"></a>
+  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-24292f?style=flat-square">
+  <img alt="Built with Tauri" src="https://img.shields.io/badge/Tauri-2.x-24c8db?style=flat-square">
+</p>
+
+<p align="center">
+  <a href="https://github.com/233i/ore-code/releases/tag/v0.1.0"><strong>Download Preview</strong></a>
+  ·
+  <a href="./docs/README.md">Docs</a>
+  ·
+  <a href="./README.zh-CN.md">简体中文</a>
+</p>
+
+![Ore Code home screen](./docs/assets/ore-code-home.png)
+
+> Status: pre-release. Ore Code is source-available under the MIT License.
+
+## Why Ore Code
+
+Ore Code is built for coding workflows where the agent needs to inspect real project context, run tools predictably, and keep long conversations coherent. It combines a TypeScript agent runtime, a React/Tauri desktop app, and a Rust OS boundary for local file, process, Git, and MCP operations.
+
+| Long-context agent | Local desktop tools | DeepSeek-first workflow |
+| --- | --- | --- |
+| Model-aware context budgets, history compression, and request shaping for large coding turns. | File operations, shell/process execution, tests, Git review, code execution, web fetch, and MCP servers. | Provider configuration, thinking-level controls, prompt/cache stability, and DeepSeek-compatible defaults. |
 
 ## Highlights
 
 - DeepSeek-oriented agent runtime with plan, agent, and full-access workflows.
-- Large-context support with model-aware capacity estimates, history compression, and project context routing.
-- Structured tools for file operations, shell/process execution, tests, Git diff review, code execution, web fetch, LSP diagnostics, and MCP servers.
 - Desktop UI for chat, tool approvals, skills, automations, project indexing, usage/context visibility, and code changes.
-- Cross-platform work in progress for macOS and Windows, including structured process execution and Windows executable resolution.
-- Harness and replay-oriented packages for testing agent behavior without relying on live models.
+- Structured tools for file operations, shell/process execution, tests, Git diff review, code execution, web fetch, LSP diagnostics, and MCP servers.
+- Harness and replay packages for testing agent behavior without relying on live models.
+- Cross-platform desktop work for macOS and Windows.
 
-## Screenshot
+## Download
 
-![Ore Code home screen](./docs/assets/ore-code-home.png)
+The current public build is a macOS Apple Silicon pre-release:
+
+- [Download `Ore.Code_0.1.0_aarch64.dmg`](https://github.com/233i/ore-code/releases/download/v0.1.0/Ore.Code_0.1.0_aarch64.dmg)
+- SHA-256: `805dc211c21d0d8995115260bd91c0b856d44d09775f3ba65a2a629b47773eaa`
+
+### macOS Pre-Release Install
+
+The first macOS pre-release builds are unsigned and not notarized. When macOS blocks the app, open it once with either of these flows:
+
+- Control-click or right-click `Ore Code.app`, choose **Open**, then choose **Open** again in the confirmation dialog.
+- If macOS still blocks it, open **System Settings > Privacy & Security**, find the Ore Code warning, and choose **Open Anyway**.
+
+Only install builds downloaded from this repository's GitHub releases.
 
 ## Repository Layout
 
@@ -32,58 +76,24 @@ docs/                  Product, architecture, workflow, and project planning doc
 scripts/               Local helper scripts
 ```
 
-## Prerequisites
+## Development
 
-- Node.js 20+ is required; Node 22 is the pinned development and CI version in `.node-version`.
-- pnpm 11.x. This repo declares `pnpm@11.0.8` in `packageManager`; use Corepack or an equivalent pinned pnpm install.
+Prerequisites:
+
+- Node.js 20+; Node 22 is the pinned development and CI version in `.node-version`.
+- pnpm 11.x. This repo declares `pnpm@11.0.8` in `packageManager`.
 - Rust stable with Cargo.
 - Tauri 2 system prerequisites for your OS.
 - Git.
 
-Optional capabilities depend on the workflow you use:
-
-- Python for `code_execution` and Python project diagnostics.
-- Cargo/Rust for Rust project diagnostics and desktop builds.
-- MCP server CLIs such as `npx`-launched servers.
-
-## Getting Started
+Start the desktop app:
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Run the desktop package directly:
-
-```bash
-pnpm --filter @ore-code/desktop tauri dev
-```
-
-Build all TypeScript packages:
-
-```bash
-pnpm build
-```
-
-Build desktop installers:
-
-```bash
-pnpm --filter @ore-code/desktop tauri:build
-pnpm build:desktop:windows
-```
-
-## macOS Pre-Release Install
-
-The first macOS pre-release builds are unsigned and not notarized. When macOS blocks the app, open it once with either of these flows:
-
-- Control-click or right-click `Ore Code.app`, choose **Open**, then choose **Open** again in the confirmation dialog.
-- If macOS still blocks it, open **System Settings > Privacy & Security**, find the Ore Code warning, and choose **Open Anyway**.
-
-Only install builds downloaded from this repository's GitHub releases.
-
-## Verification
-
-Use the focused package checks while developing:
+Run package checks:
 
 ```bash
 pnpm --filter @ore-code/desktop typecheck
@@ -91,25 +101,24 @@ pnpm --filter @ore-code/desktop test
 pnpm --filter @ore-code/desktop lint
 ```
 
-Run broader local checks before opening a larger pull request:
+Build installers:
 
 ```bash
-pnpm ci:local
+pnpm --filter @ore-code/desktop tauri:build
+pnpm build:desktop:windows
 ```
 
 ## Configuration and Local Data
 
-Ore Code creates and reads local runtime data outside the repository, including:
+Ore Code keeps user-level runtime data outside the repository:
 
 - `~/.seekforge/skills`
 - `~/.seekforge/mcp.json`
 - `~/.deepseek/config.toml` for DeepSeek-compatible provider configuration
 
-Project-local runtime data under `.seekforge/` is ignored by Git.
+Project-local runtime data under `.seekforge/` is ignored by Git. The `.seekforge` name is retained for compatibility with existing pre-release data.
 
 ## Documentation
-
-Start with [docs/README.md](./docs/README.md). Useful entry points:
 
 - [Architecture overview](./docs/ARCHITECTURE_OVERVIEW.md)
 - [Development guide](./docs/DEVELOPMENT.md)
@@ -121,25 +130,14 @@ Start with [docs/README.md](./docs/README.md). Useful entry points:
 - [Skill system](./docs/06-skill-system.md)
 - [Known limitations](./docs/KNOWN_LIMITATIONS.md)
 
-## Contributing
+## Project
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md). Keep changes scoped, preserve runtime event/tool compatibility unless intentionally changing it, and consider Windows/macOS behavior for any desktop or process-related work.
-
-## Community and Support
-
-See [SUPPORT.md](./SUPPORT.md) and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
-
-## Privacy
-
-See [PRIVACY.md](./PRIVACY.md) for local data, provider request, and tool execution boundaries.
-
-## Security
-
-See [SECURITY.md](./SECURITY.md) for reporting guidance.
-
-## Changelog
-
-See [CHANGELOG.md](./CHANGELOG.md).
+- [Contributing](./CONTRIBUTING.md)
+- [Support](./SUPPORT.md)
+- [Code of Conduct](./CODE_OF_CONDUCT.md)
+- [Privacy](./PRIVACY.md)
+- [Security](./SECURITY.md)
+- [Changelog](./CHANGELOG.md)
 
 ## License
 
