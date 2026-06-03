@@ -527,6 +527,34 @@ fn config_source_reports_loaded_and_missing_files() {
 }
 
 #[test]
+fn user_ore_code_config_write_round_trips_non_secret_content() {
+    let root = make_temp_workspace();
+    let content = "provider = \"deepseek\"\n\n[providers.deepseek]\napi_key_env = \"DEEPSEEK_API_KEY\"\n";
+
+    let status = write_user_ore_code_config(&root, content).unwrap();
+
+    assert_eq!(status.scope, "global");
+    assert_eq!(status.status, "loaded");
+    assert_eq!(status.content.as_deref(), Some(content));
+    assert_eq!(
+        fs::read_to_string(root.join(".ore-code").join("config.toml")).unwrap(),
+        content
+    );
+}
+
+#[test]
+fn user_ore_code_config_write_rejects_inline_secrets() {
+    let root = make_temp_workspace();
+    let result = write_user_ore_code_config(
+        &root,
+        "provider = \"deepseek\"\napi_key = \"sk-test\"\n",
+    );
+
+    assert!(result.is_err());
+    assert!(!root.join(".ore-code").join("config.toml").exists());
+}
+
+#[test]
 fn bootstrap_creates_user_environment_without_project_files() {
     let root = make_temp_workspace();
     let home = root.join("home");

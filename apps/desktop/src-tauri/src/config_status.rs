@@ -151,6 +151,15 @@ pub(crate) fn ore_code_config_status(
 }
 
 #[tauri::command]
+pub(crate) fn ore_code_config_write(
+    app: tauri::AppHandle,
+    content: String,
+) -> Result<ConfigSourceStatus, String> {
+    let home = app.path().home_dir().map_err(|error| error.to_string())?;
+    write_user_ore_code_config(&home, &content)
+}
+
+#[tauri::command]
 pub(crate) fn ore_code_config_env_secret_get(name: String) -> Result<ConfigEnvSecretValue, String> {
     let normalized = validate_env_name(&name)?;
     let value = env::var(&normalized)
@@ -244,6 +253,52 @@ pub(crate) fn read_config_source(scope: &str, path: PathBuf) -> ConfigSourceStat
             error: Some(error.to_string()),
         },
     }
+}
+
+pub(crate) fn write_user_ore_code_config(
+    home: &Path,
+    content: &str,
+) -> Result<ConfigSourceStatus, String> {
+    validate_ore_code_config_content(content)?;
+    let path = home.join(".ore-code").join("config.toml");
+    let parent = path
+        .parent()
+        .ok_or_else(|| "config file has no parent directory".to_string())?;
+    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    fs::write(&path, content).map_err(|error| error.to_string())?;
+    Ok(read_config_source("global", path))
+}
+
+pub(crate) fn validate_ore_code_config_content(content: &str) -> Result<(), String> {
+    if content.len() > 1024 * 1024 {
+        return Err("config file is too large".to_string());
+    }
+    if config_contains_inline_secret(content) {
+        return Err("config.toml must not contain API keys or secrets; use secure storage or *_ENV variables".to_string());
+    }
+    Ok(())
+}
+
+pub(crate) fn config_contains_inline_secret(content: &str) -> bool {
+    content.lines().any(|line| {
+        let Some((key, _)) = line.split_once('=') else {
+            return false;
+        };
+        let normalized = key
+            .split('#')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_ascii_lowercase()
+            .replace(['_', '-'], "");
+        if normalized.ends_with("env") {
+            return false;
+        }
+        normalized.contains("apikey")
+            || normalized.contains("secret")
+            || normalized.contains("token")
+            || normalized.contains("password")
+    })
 }
 
 pub(crate) fn canonicalize_workspace_or_raw(path: &str) -> PathBuf {

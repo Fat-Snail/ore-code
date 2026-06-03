@@ -130,6 +130,7 @@ pub fn run() {
             automation_commands::automation_state_save,
             automation_commands::automation_daemon_status,
             config_status::ore_code_config_status,
+            config_status::ore_code_config_write,
             config_status::ore_code_config_env_secret_get,
             web_fetch::web_fetch_url,
             mcp::mcp_config_status,

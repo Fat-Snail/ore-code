@@ -165,6 +165,7 @@ function App() {
     effectiveProviderConfig,
     modelLabel,
     refreshOreCodeConfig,
+    persistUserOreCodeConfig,
     createLlmClient,
     createConfiguredProviderClient,
     resolveProviderApiKey,
@@ -271,21 +272,11 @@ function App() {
     themePreference,
     togglePlanMode
   } = useAppSettingsController({
-    deepSeekBaseUrl,
-    deepSeekModel,
-    deepSeekModelMode,
-    deepSeekThinkingLevel,
     disabledSkillIds,
     onDisabledSkillIdsLoaded: setDisabledSkillIds,
     onWorkspaceSettingsLoaded: loadWorkspaceSettings,
-    provider,
     recentWorkspacePaths,
     refreshOreCodeConfig,
-    setDeepSeekBaseUrl,
-    setDeepSeekModel,
-    setDeepSeekModelMode,
-    setDeepSeekThinkingLevel,
-    setProvider,
     workspacePath
   });
   const t = useMemo(() => createTranslator(resolvedLocale), [resolvedLocale]);
@@ -1129,6 +1120,11 @@ function App() {
     }
   }
 
+  async function persistSettingsAndUserConfig() {
+    await persistAppSettings();
+    await persistUserOreCodeConfig(workspacePath);
+  }
+
   const settingsOverlayProps = useSettingsOverlayProps({
     activeSettingsSection,
     applyWorkspacePath,
@@ -1176,7 +1172,8 @@ function App() {
     openSearchPanel,
     openSkillsPanel,
     permissionPreset,
-    persistAppSettings,
+    persistAppSettings: persistSettingsAndUserConfig,
+    persistUserOreCodeConfig,
     provider,
     providerError,
     providerOptions,

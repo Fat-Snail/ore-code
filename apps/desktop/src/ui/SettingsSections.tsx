@@ -2,7 +2,7 @@ import { Button, Dialog, Input, Select, Tag } from "tdesign-react";
 import type { AutomationRecord, DeepSeekModelMode, DeepSeekThinkingLevel, DurableTaskSnapshot, NoteRecord } from "@ore-code/agent-core";
 import type { ThemePreference } from "../services/appSettings";
 import type { UiLocalePreference } from "../services/uiLocale";
-import type { ProviderConfig, ResolvedOreCodeConfig } from "../services/oreCodeConfig";
+import type { ConfigFieldSource, ProviderConfig, ProviderConfigSources, ResolvedOreCodeConfig } from "../services/oreCodeConfig";
 import { mcpConnectionSummary, type McpToolSnapshot } from "../services/mcpHost";
 import { formatUsageInteger, type UsageSummary } from "../services/usageSummary";
 import type { DoctorCheck } from "../services/workspaceDoctor";
@@ -29,11 +29,8 @@ export type GeneralSettingsSectionProps = {
   onIncludeIdeContextChange: (value: boolean) => void;
   onLocalePreferenceChange: (locale: UiLocalePreference) => void;
   onModeChange: (mode: AppMode) => void;
-  onProviderChange: (provider: Provider) => void;
   onSectionChange: (section: SettingsSection) => void;
   onThemePreferenceChange: (theme: ThemePreference) => void;
-  provider: Provider;
-  providerOptions: readonly ProviderOption[];
   themePreference: ThemePreference;
   workspacePath: string;
 };
@@ -47,16 +44,12 @@ export function GeneralSettingsSection({
   onIncludeIdeContextChange,
   onLocalePreferenceChange,
   onModeChange,
-  onProviderChange,
   onSectionChange,
   onThemePreferenceChange,
-  provider,
-  providerOptions,
   themePreference,
   workspacePath
 }: GeneralSettingsSectionProps) {
   const { t } = useI18n();
-  const localizedProviderOptions = [...providerOptions];
   const localizedThemeOptions = localizedOptions(themeOptions, t, {
     system: "settings.option.followSystem",
     light: "settings.option.light",
@@ -80,13 +73,6 @@ export function GeneralSettingsSection({
         <h2>{t("settings.general.defaultBehavior")}</h2>
         <p>{t("settings.general.summary")}</p>
         <div className="settings-table">
-          <div className="settings-row">
-            <div>
-              <strong>{t("settings.general.defaultProvider.title")}</strong>
-              <p>{t("settings.general.defaultProvider.description")}</p>
-            </div>
-            <Select options={localizedProviderOptions} value={provider} onChange={(value) => onProviderChange(String(value) as Provider)} />
-          </div>
           <div className="settings-row">
             <div>
               <strong>{t("settings.general.theme.title")}</strong>
@@ -166,6 +152,7 @@ export type ProviderSettingsSectionProps = {
   deepSeekModelMode: DeepSeekModelMode;
   deepSeekThinkingLevel: DeepSeekThinkingLevel;
   effectiveProviderConfig: ProviderConfig | null;
+  fieldSources?: ProviderConfigSources;
   onApiKeyChange: (value: string) => void;
   onBaseUrlChange: (value: string) => void;
   onDeepSeekModelModeChange: (value: DeepSeekModelMode) => void;
@@ -176,6 +163,7 @@ export type ProviderSettingsSectionProps = {
   onRefreshConfig: () => void | Promise<void>;
   onRemoveApiKey: () => void | Promise<void>;
   onSaveApiKey: () => void | Promise<void>;
+  onSaveConfig: () => void | Promise<void>;
   onTestProviderConnection: () => void | Promise<void>;
   provider: Provider;
   providerError: string | null;
@@ -194,6 +182,7 @@ export function ProviderSettingsSection({
   deepSeekModelMode,
   deepSeekThinkingLevel,
   effectiveProviderConfig,
+  fieldSources,
   onApiKeyChange,
   onBaseUrlChange,
   onDeepSeekModelModeChange,
@@ -204,6 +193,7 @@ export function ProviderSettingsSection({
   onRefreshConfig,
   onRemoveApiKey,
   onSaveApiKey,
+  onSaveConfig,
   onTestProviderConnection,
   provider,
   providerError,
@@ -223,9 +213,12 @@ export function ProviderSettingsSection({
           <div className="settings-row">
             <div>
               <strong>当前 Provider</strong>
-              <p>Mock 用于本地验收；配置文件可增加 OpenAI-compatible provider。</p>
+              <p>保存到 ~/.ore-code/config.toml；项目配置或环境变量会优先生效。</p>
             </div>
-            <Select options={[...providerOptions]} value={provider} onChange={(value) => onProviderChange(String(value) as Provider)} />
+            <div className="settings-control-stack">
+              <Select options={[...providerOptions]} value={provider} onChange={(value) => onProviderChange(String(value) as Provider)} />
+              <ConfigSourceTag source={fieldSources?.provider} />
+            </div>
           </div>
           <div className="settings-row">
             <div>
@@ -260,45 +253,58 @@ export function ProviderSettingsSection({
               <strong>模型模式</strong>
               <p>Auto 会按任务复杂度在 V4 Flash 和 V4 Pro 之间切换。</p>
             </div>
-            <Select
-              disabled={provider !== "deepseek"}
-              options={deepSeekModelOptions.map((option) => ({ label: option.label, value: option.value }))}
-              value={deepSeekModelMode}
-              onChange={(value) => onDeepSeekModelModeChange(String(value) as DeepSeekModelMode)}
-            />
+            <div className="settings-control-stack">
+              <Select
+                disabled={provider !== "deepseek"}
+                options={deepSeekModelOptions.map((option) => ({ label: option.label, value: option.value }))}
+                value={deepSeekModelMode}
+                onChange={(value) => onDeepSeekModelModeChange(String(value) as DeepSeekModelMode)}
+              />
+              <ConfigSourceTag source={fieldSources?.modelMode} />
+            </div>
           </div>
           <div className="settings-row">
             <div>
               <strong>高级模型名</strong>
               <p>保留给兼容和高级覆盖；官方 Pro/Flash 建议使用模型模式。</p>
             </div>
-            <Input onChange={(value) => onModelChange(String(value))} value={deepSeekModel} />
+            <div className="settings-control-stack">
+              <Input onChange={(value) => onModelChange(String(value))} value={deepSeekModel} />
+              <ConfigSourceTag source={fieldSources?.model} />
+            </div>
           </div>
           <div className="settings-row">
             <div>
               <strong>思考等级</strong>
               <p>仅 DeepSeek V4 thinking 请求生效；关闭适合低延迟，高和最强适合复杂编码。</p>
             </div>
-            <Select
-              disabled={provider !== "deepseek"}
-              options={deepSeekThinkingOptions.map((option) => ({ label: option.label, value: option.value }))}
-              value={deepSeekThinkingLevel}
-              onChange={(value) => onDeepSeekThinkingLevelChange(String(value) as DeepSeekThinkingLevel)}
-            />
+            <div className="settings-control-stack">
+              <Select
+                disabled={provider !== "deepseek"}
+                options={deepSeekThinkingOptions.map((option) => ({ label: option.label, value: option.value }))}
+                value={deepSeekThinkingLevel}
+                onChange={(value) => onDeepSeekThinkingLevelChange(String(value) as DeepSeekThinkingLevel)}
+              />
+              <ConfigSourceTag source={fieldSources?.thinkingLevel} />
+            </div>
           </div>
           <div className="settings-row">
             <div>
               <strong>Base URL</strong>
               <p>DeepSeek OpenAI-compatible API 地址。</p>
             </div>
-            <Input onChange={(value) => onBaseUrlChange(String(value))} value={deepSeekBaseUrl} />
+            <div className="settings-control-stack">
+              <Input onChange={(value) => onBaseUrlChange(String(value))} value={deepSeekBaseUrl} />
+              <ConfigSourceTag source={fieldSources?.baseUrl} />
+            </div>
           </div>
           <div className="settings-row compact-actions">
             <div>
-              <strong>配置 overlay</strong>
-              <p>{configMessage ?? "读取 ~/.ore-code/config.toml 和项目 .ore-code/config.toml。"}</p>
+              <strong>用户配置</strong>
+              <p>{configMessage ?? "读取并写入 ~/.ore-code/config.toml；项目 .ore-code/config.toml 和环境变量只覆盖运行时。"}</p>
             </div>
             <div className="settings-actions">
+              <Button type="button" theme="primary" onClick={() => void onSaveConfig()}>保存配置</Button>
               <Button type="button" variant="outline" onClick={() => void onRefreshConfig()}>刷新配置</Button>
             </div>
           </div>
@@ -324,6 +330,29 @@ export function ProviderSettingsSection({
       </section>
     </>
   );
+}
+
+function ConfigSourceTag({ source }: { source?: ConfigFieldSource }) {
+  const label = configSourceLabel(source);
+  const sourceClass = source?.source ?? "default";
+  return <Tag className={`config-source-tag ${sourceClass}`} variant="light">{label}</Tag>;
+}
+
+function configSourceLabel(source?: ConfigFieldSource) {
+  if (!source) {
+    return "默认值";
+  }
+
+  switch (source.source) {
+    case "env":
+      return source.envName ? `被环境变量覆盖 · ${source.envName}` : "被环境变量覆盖";
+    case "project":
+      return "被项目配置覆盖";
+    case "global":
+      return "用户配置";
+    case "default":
+      return "默认值";
+  }
 }
 
 export type PermissionsSettingsSectionProps = {

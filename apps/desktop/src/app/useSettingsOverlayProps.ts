@@ -64,6 +64,7 @@ type UseSettingsOverlayPropsInput = {
   openSkillsPanel: () => void;
   permissionPreset: PermissionPreset;
   persistAppSettings: () => void | Promise<void>;
+  persistUserOreCodeConfig: (workspacePath: string) => void | Promise<unknown>;
   provider: Provider;
   providerError: string | null;
   providerOptions: readonly ProviderOption[];
@@ -187,11 +188,8 @@ export function useSettingsOverlayProps(input: UseSettingsOverlayPropsInput): Ap
       onIncludeIdeContextChange: input.setIncludeIdeContext,
       onLocalePreferenceChange: input.setLocalePreference,
       onModeChange: input.setMode,
-      onProviderChange: input.setProvider,
       onSectionChange: input.setActiveSettingsSection,
       onThemePreferenceChange: input.setThemePreference,
-      provider: input.provider,
-      providerOptions: input.providerOptions,
       themePreference: input.themePreference,
       workspacePath: input.workspacePath
     },
@@ -237,6 +235,7 @@ export function useSettingsOverlayProps(input: UseSettingsOverlayPropsInput): Ap
       deepSeekModelMode: input.deepSeekModelMode,
       deepSeekThinkingLevel: input.deepSeekThinkingLevel,
       effectiveProviderConfig: input.effectiveProviderConfig,
+      fieldSources: input.oreCodeConfig?.providerConfigSources,
       onApiKeyChange: input.setDeepSeekApiKey,
       onBaseUrlChange: input.setDeepSeekBaseUrl,
       onDeepSeekModelModeChange: input.setDeepSeekModelMode,
@@ -249,6 +248,9 @@ export function useSettingsOverlayProps(input: UseSettingsOverlayPropsInput): Ap
       },
       onRemoveApiKey: input.removeDeepSeekApiKey,
       onSaveApiKey: input.saveDeepSeekApiKey,
+      onSaveConfig: async () => {
+        await input.persistUserOreCodeConfig(input.workspacePath);
+      },
       onTestProviderConnection: input.testProviderConnection,
       provider: input.provider,
       providerError: input.providerError,
