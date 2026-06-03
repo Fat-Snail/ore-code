@@ -39,7 +39,7 @@ pnpm-debug.log*
 *.local
 
 # Local Ore Code runtime data
-.seekforge/
+.ore-code/
 
 # Local analysis / indexing artifacts
 .codegraph/

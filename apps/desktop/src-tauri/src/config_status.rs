@@ -38,7 +38,7 @@ pub(crate) struct ConfigEnvStatus {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct SeekForgeConfigStatus {
+pub(crate) struct OreCodeConfigStatus {
     pub(crate) sources: Vec<ConfigSourceStatus>,
     pub(crate) env: Vec<ConfigEnvStatus>,
 }
@@ -125,31 +125,42 @@ pub(crate) fn app_settings_write(
 }
 
 #[tauri::command]
-pub(crate) fn seekforge_config_status(
+pub(crate) fn ore_code_config_status(
     app: tauri::AppHandle,
     workspace_path: String,
-) -> Result<SeekForgeConfigStatus, String> {
+) -> Result<OreCodeConfigStatus, String> {
     let home = app.path().home_dir().map_err(|error| error.to_string())?;
     let workspace = canonicalize_workspace_or_raw(&workspace_path);
     let sources = vec![
-        read_config_source("global", home.join(".deepseek").join("config.toml")),
-        read_config_source("project", workspace.join(".deepseek").join("config.toml")),
+        read_config_source("global", home.join(".ore-code").join("config.toml")),
+        read_config_source("project", workspace.join(".ore-code").join("config.toml")),
     ];
 
-    Ok(SeekForgeConfigStatus {
+    Ok(OreCodeConfigStatus {
         sources,
         env: config_env_statuses(&[
-            "SEEKFORGE_PROFILE",
-            "SEEKFORGE_PROVIDER",
-            "SEEKFORGE_MODEL",
-            "SEEKFORGE_BASE_URL",
+            "ORE_CODE_PROFILE",
+            "ORE_CODE_PROVIDER",
+            "ORE_CODE_MODEL",
+            "ORE_CODE_BASE_URL",
+            "ORE_CODE_DEEPSEEK_MODEL_MODE",
+            "ORE_CODE_DEEPSEEK_THINKING",
             "DEEPSEEK_API_KEY",
         ]),
     })
 }
 
 #[tauri::command]
-pub(crate) fn seekforge_config_env_secret_get(name: String) -> Result<ConfigEnvSecretValue, String> {
+pub(crate) fn ore_code_config_write(
+    app: tauri::AppHandle,
+    content: String,
+) -> Result<ConfigSourceStatus, String> {
+    let home = app.path().home_dir().map_err(|error| error.to_string())?;
+    write_user_ore_code_config(&home, &content)
+}
+
+#[tauri::command]
+pub(crate) fn ore_code_config_env_secret_get(name: String) -> Result<ConfigEnvSecretValue, String> {
     let normalized = validate_env_name(&name)?;
     let value = env::var(&normalized)
         .map_err(|_| format!("environment variable {normalized} is not set"))?;
@@ -242,6 +253,52 @@ pub(crate) fn read_config_source(scope: &str, path: PathBuf) -> ConfigSourceStat
             error: Some(error.to_string()),
         },
     }
+}
+
+pub(crate) fn write_user_ore_code_config(
+    home: &Path,
+    content: &str,
+) -> Result<ConfigSourceStatus, String> {
+    validate_ore_code_config_content(content)?;
+    let path = home.join(".ore-code").join("config.toml");
+    let parent = path
+        .parent()
+        .ok_or_else(|| "config file has no parent directory".to_string())?;
+    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    fs::write(&path, content).map_err(|error| error.to_string())?;
+    Ok(read_config_source("global", path))
+}
+
+pub(crate) fn validate_ore_code_config_content(content: &str) -> Result<(), String> {
+    if content.len() > 1024 * 1024 {
+        return Err("config file is too large".to_string());
+    }
+    if config_contains_inline_secret(content) {
+        return Err("config.toml must not contain API keys or secrets; use secure storage or *_ENV variables".to_string());
+    }
+    Ok(())
+}
+
+pub(crate) fn config_contains_inline_secret(content: &str) -> bool {
+    content.lines().any(|line| {
+        let Some((key, _)) = line.split_once('=') else {
+            return false;
+        };
+        let normalized = key
+            .split('#')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_ascii_lowercase()
+            .replace(['_', '-'], "");
+        if normalized.ends_with("env") {
+            return false;
+        }
+        normalized.contains("apikey")
+            || normalized.contains("secret")
+            || normalized.contains("token")
+            || normalized.contains("password")
+    })
 }
 
 pub(crate) fn canonicalize_workspace_or_raw(path: &str) -> PathBuf {

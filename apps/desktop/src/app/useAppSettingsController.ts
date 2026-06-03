@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import type { DeepSeekModelMode, DeepSeekThinkingLevel } from "@ore-code/agent-core";
-import type { ResolvedSeekForgeConfig } from "../services/seekforgeConfig";
+import type { ResolvedOreCodeConfig } from "../services/oreCodeConfig";
 import { loadAppSettings, saveAppSettings, type ThemePreference } from "../services/appSettings";
 import { resolveUiLocale, type UiLocalePreference } from "../services/uiLocale";
 import { addWorkspacePathPreservingOrder } from "../hooks/useWorkspaceProjects";
@@ -10,43 +9,22 @@ import {
   presetFromMode,
   type PermissionPreset
 } from "../ui/permissionPreset";
-import type { Provider } from "../hooks/useProviderConfig";
 
 type AppSettingsControllerInput = {
-  deepSeekBaseUrl: string;
-  deepSeekModel: string;
-  deepSeekModelMode: DeepSeekModelMode;
-  deepSeekThinkingLevel: DeepSeekThinkingLevel;
   disabledSkillIds: string[];
   onDisabledSkillIdsLoaded: (ids: string[]) => void;
   onWorkspaceSettingsLoaded: (path: string, paths: string[]) => Promise<void>;
-  provider: Provider;
   recentWorkspacePaths: string[];
-  refreshSeekForgeConfig: (workspacePath: string) => Promise<ResolvedSeekForgeConfig>;
-  setDeepSeekBaseUrl: (value: string) => void;
-  setDeepSeekModel: (value: string) => void;
-  setDeepSeekModelMode: (value: DeepSeekModelMode) => void;
-  setDeepSeekThinkingLevel: (value: DeepSeekThinkingLevel) => void;
-  setProvider: (provider: Provider) => void;
+  refreshOreCodeConfig: (workspacePath: string) => Promise<ResolvedOreCodeConfig>;
   workspacePath: string;
 };
 
 export function useAppSettingsController({
-  deepSeekBaseUrl,
-  deepSeekModel,
-  deepSeekModelMode,
-  deepSeekThinkingLevel,
   disabledSkillIds,
   onDisabledSkillIdsLoaded,
   onWorkspaceSettingsLoaded,
-  provider,
   recentWorkspacePaths,
-  refreshSeekForgeConfig,
-  setDeepSeekBaseUrl,
-  setDeepSeekModel,
-  setDeepSeekModelMode,
-  setDeepSeekThinkingLevel,
-  setProvider,
+  refreshOreCodeConfig,
   workspacePath
 }: AppSettingsControllerInput) {
   const [mode, setMode] = useState<AppMode>("agent");
@@ -97,7 +75,7 @@ export function useAppSettingsController({
     }, 300);
 
     return () => window.clearTimeout(timer);
-  }, [settingsLoaded, provider, mode, permissionPreset, includeIdeContext, enableCacheWarmup, themePreference, localePreference, deepSeekModel, deepSeekModelMode, deepSeekBaseUrl, deepSeekThinkingLevel, workspacePath, recentWorkspacePaths, disabledSkillIds]);
+  }, [settingsLoaded, mode, permissionPreset, includeIdeContext, enableCacheWarmup, themePreference, localePreference, workspacePath, recentWorkspacePaths, disabledSkillIds]);
 
   function setPermissionPreset(nextPreset: PermissionPreset) {
     setPermissionPresetState(nextPreset);
@@ -113,25 +91,17 @@ export function useAppSettingsController({
   async function loadSavedSettings() {
     try {
       const settings = await loadAppSettings();
-      setProvider(settings.provider);
       setMode(settings.mode);
       setPermissionPresetState(settings.permissionPreset ?? presetFromMode(settings.mode));
       setIncludeIdeContext(settings.includeIdeContext);
       setEnableCacheWarmup(settings.enableCacheWarmup);
       setThemePreference(settings.themePreference);
       setLocalePreference(settings.localePreference);
-      setDeepSeekModel(settings.deepSeekModel);
-      setDeepSeekModelMode(settings.deepSeekModelMode);
-      setDeepSeekBaseUrl(settings.deepSeekBaseUrl);
-      setDeepSeekThinkingLevel(settings.deepSeekThinkingLevel);
       onDisabledSkillIdsLoaded(settings.disabledSkillIds);
       setSettingsLoaded(true);
       setSettingsMessage("设置已加载。");
       await onWorkspaceSettingsLoaded(settings.workspacePath, settings.workspacePaths);
-      const config = await refreshSeekForgeConfig(settings.workspacePath);
-      if (settings.provider === "mock" && config.providerId && config.providerId !== "mock") {
-        setProvider(config.providerId);
-      }
+      await refreshOreCodeConfig(settings.workspacePath);
     } catch (error) {
       setSettingsLoaded(true);
       setSettingsMessage(error instanceof Error ? error.message : String(error));
@@ -141,17 +111,12 @@ export function useAppSettingsController({
   async function persistAppSettings() {
     try {
       await saveAppSettings({
-        provider,
         mode,
         permissionPreset,
         includeIdeContext,
         enableCacheWarmup,
         themePreference,
         localePreference,
-        deepSeekModel,
-        deepSeekModelMode,
-        deepSeekBaseUrl,
-        deepSeekThinkingLevel,
         workspacePath,
         workspacePaths: addWorkspacePathPreservingOrder(recentWorkspacePaths, workspacePath),
         disabledSkillIds

@@ -154,7 +154,7 @@ function App() {
     setDeepSeekBaseUrl,
     deepSeekThinkingLevel,
     setDeepSeekThinkingLevel,
-    seekForgeConfig,
+    oreCodeConfig,
     configMessage,
     providerError,
     setProviderError,
@@ -164,7 +164,8 @@ function App() {
     providerOptions,
     effectiveProviderConfig,
     modelLabel,
-    refreshSeekForgeConfig,
+    refreshOreCodeConfig,
+    persistUserOreCodeConfig,
     createLlmClient,
     createConfiguredProviderClient,
     resolveProviderApiKey,
@@ -271,21 +272,11 @@ function App() {
     themePreference,
     togglePlanMode
   } = useAppSettingsController({
-    deepSeekBaseUrl,
-    deepSeekModel,
-    deepSeekModelMode,
-    deepSeekThinkingLevel,
     disabledSkillIds,
     onDisabledSkillIdsLoaded: setDisabledSkillIds,
     onWorkspaceSettingsLoaded: loadWorkspaceSettings,
-    provider,
     recentWorkspacePaths,
-    refreshSeekForgeConfig,
-    setDeepSeekBaseUrl,
-    setDeepSeekModel,
-    setDeepSeekModelMode,
-    setDeepSeekThinkingLevel,
-    setProvider,
+    refreshOreCodeConfig,
     workspacePath
   });
   const t = useMemo(() => createTranslator(resolvedLocale), [resolvedLocale]);
@@ -527,7 +518,7 @@ function App() {
     effectiveProviderConfig,
     events,
     executeLocalSlashCommand,
-    enableCacheWarmup: enableCacheWarmup || Boolean(seekForgeConfig?.context.enableCacheWarmup),
+    enableCacheWarmup: enableCacheWarmup || Boolean(oreCodeConfig?.context.enableCacheWarmup),
     includeIdeContext,
     lazyContextIndex,
     mode,
@@ -792,7 +783,7 @@ function App() {
     if (!settingsLoaded) {
       return;
     }
-    void refreshSeekForgeConfig(workspacePath);
+    void refreshOreCodeConfig(workspacePath);
   }, [settingsLoaded, workspacePath]);
 
   useEffect(() => {
@@ -800,7 +791,7 @@ function App() {
       return;
     }
 
-    const storageKey = "seekforge.environmentDoctor.autoRun.v1";
+    const storageKey = "ore-code.environmentDoctor.autoRun.v1";
     try {
       if (window.localStorage.getItem(storageKey)) {
         return;
@@ -1018,7 +1009,7 @@ function App() {
         fileHost: createRuntimeFileHost(),
         environmentPaths: doctorContext.environmentPaths,
         workspaceSignals: doctorContext.workspaceSignals,
-        configSources: seekForgeConfig?.sources
+        configSources: oreCodeConfig?.sources
       });
       setDoctorChecks(checks);
       setDoctorMessage(summarizeDoctor(checks));
@@ -1129,6 +1120,11 @@ function App() {
     }
   }
 
+  async function persistSettingsAndUserConfig() {
+    await persistAppSettings();
+    await persistUserOreCodeConfig(workspacePath);
+  }
+
   const settingsOverlayProps = useSettingsOverlayProps({
     activeSettingsSection,
     applyWorkspacePath,
@@ -1141,7 +1137,7 @@ function App() {
     clearSessionApprovalCache,
     configMessage,
     currentWorkspaceDisplay,
-    seekForgeConfig,
+    oreCodeConfig,
     deepSeekApiKey,
     deepSeekBaseUrl,
     deepSeekModel,
@@ -1158,7 +1154,7 @@ function App() {
     durableTaskCount: durableTasks.length,
     durableTasks,
     effectiveProviderConfig,
-    enableCacheWarmup: enableCacheWarmup || Boolean(seekForgeConfig?.context.enableCacheWarmup),
+    enableCacheWarmup: enableCacheWarmup || Boolean(oreCodeConfig?.context.enableCacheWarmup),
     enabledSkillCount,
     includeIdeContext,
     initMcpConfig,
@@ -1176,14 +1172,15 @@ function App() {
     openSearchPanel,
     openSkillsPanel,
     permissionPreset,
-    persistAppSettings,
+    persistAppSettings: persistSettingsAndUserConfig,
+    persistUserOreCodeConfig,
     provider,
     providerError,
     providerOptions,
     providerTestMessage,
     recentWorkspacePaths,
     refreshAutomationWorkspace,
-    refreshSeekForgeConfig,
+    refreshOreCodeConfig,
     refreshMcpTools,
     removeDeepSeekApiKey,
     runAgentTurn,

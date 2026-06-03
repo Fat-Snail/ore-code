@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_DEEPSEEK_BASE_URL, DEFAULT_DEEPSEEK_MODEL } from "./appSettings";
-import { parseMiniToml, resolveSeekForgeConfig, resolveProvider } from "./seekforgeConfig";
+import { buildUserOreCodeConfigContent, parseMiniToml, resolveOreCodeConfig, resolveProvider } from "./oreCodeConfig";
 
-describe("seekforge config", () => {
+describe("ore-code config", () => {
   it("overlays global and project config with active profiles", () => {
-    const resolved = resolveSeekForgeConfig({
+    const resolved = resolveOreCodeConfig({
       sources: [
         {
           scope: "global",
-          path: "~/.deepseek/config.toml",
+          path: "~/.ore-code/config.toml",
           status: "loaded",
           content: `
 profile = "work"
@@ -30,7 +30,7 @@ enableCacheWarmup = true
         },
         {
           scope: "project",
-          path: "/repo/.deepseek/config.toml",
+          path: "/repo/.ore-code/config.toml",
           status: "loaded",
           content: `
 [profiles.work]
@@ -54,11 +54,11 @@ model = "deepseek-v4-pro"
   });
 
   it("supports custom OpenAI-compatible providers", () => {
-    const resolved = resolveSeekForgeConfig({
+    const resolved = resolveOreCodeConfig({
       sources: [
         {
           scope: "project",
-          path: "/repo/.deepseek/config.toml",
+          path: "/repo/.ore-code/config.toml",
           status: "loaded",
           content: `
 provider = "local"
@@ -86,10 +86,10 @@ api_key_env = "LOCAL_GATEWAY_API_KEY"
   });
 
   it("uses stable DeepSeek defaults when config files are missing", () => {
-    const resolved = resolveSeekForgeConfig({
+    const resolved = resolveOreCodeConfig({
       sources: [
-        { scope: "global", path: "~/.deepseek/config.toml", status: "missing" },
-        { scope: "project", path: "/repo/.deepseek/config.toml", status: "missing" }
+        { scope: "global", path: "~/.ore-code/config.toml", status: "missing" },
+        { scope: "project", path: "/repo/.ore-code/config.toml", status: "missing" }
       ],
       env: []
     });
@@ -102,11 +102,11 @@ api_key_env = "LOCAL_GATEWAY_API_KEY"
   });
 
   it("resolves DeepSeek model mode overlay separately from model name", () => {
-    const resolved = resolveSeekForgeConfig({
+    const resolved = resolveOreCodeConfig({
       sources: [
         {
           scope: "project",
-          path: "/repo/.deepseek/config.toml",
+          path: "/repo/.ore-code/config.toml",
           status: "loaded",
           content: `
 [providers.deepseek]
@@ -121,6 +121,85 @@ model_mode = "flash"
     expect(resolveProvider(resolved, "deepseek")).toMatchObject({
       model: "deepseek-v4-pro",
       deepSeekModelMode: "flash"
+    });
+  });
+
+  it("tracks provider field sources for settings override labels", () => {
+    const resolved = resolveOreCodeConfig({
+      sources: [
+        {
+          scope: "global",
+          path: "~/.ore-code/config.toml",
+          status: "loaded",
+          content: `
+provider = "deepseek"
+
+[providers.deepseek]
+model = "deepseek-v4-flash"
+base_url = "https://api.deepseek.com/beta"
+model_mode = "auto"
+`
+        },
+        {
+          scope: "project",
+          path: "/repo/.ore-code/config.toml",
+          status: "loaded",
+          content: `
+[providers.deepseek]
+base_url = "https://project.example/v1"
+`
+        }
+      ],
+      env: [
+        { name: "ORE_CODE_MODEL", present: true, value: "deepseek-v4-pro" }
+      ]
+    });
+
+    expect(resolved.providerConfigSources.provider.source).toBe("global");
+    expect(resolved.providerConfigSources.model).toMatchObject({
+      source: "env",
+      envName: "ORE_CODE_MODEL"
+    });
+    expect(resolved.providerConfigSources.baseUrl).toMatchObject({
+      source: "project",
+      path: "/repo/.ore-code/config.toml"
+    });
+    expect(resolved.providerConfigSources.modelMode.source).toBe("global");
+    expect(resolved.providerConfigSources.thinkingLevel.source).toBe("default");
+  });
+
+  it("builds user config content without dropping custom providers", () => {
+    const content = buildUserOreCodeConfigContent(`
+provider = "local"
+
+[providers.local]
+label = "Local Gateway"
+model = "local-model"
+base_url = "http://localhost:8080/v1"
+api_key_env = "LOCAL_GATEWAY_API_KEY"
+`, {
+      providerId: "deepseek",
+      model: "deepseek-v4-pro",
+      deepSeekModelMode: "flash",
+      baseUrl: "https://api.deepseek.com/beta",
+      deepSeekThinkingLevel: "high"
+    });
+
+    expect(parseMiniToml(content)).toMatchObject({
+      provider: "deepseek",
+      providers: {
+        local: {
+          label: "Local Gateway",
+          model: "local-model"
+        },
+        deepseek: {
+          model: "deepseek-v4-pro",
+          base_url: "https://api.deepseek.com/beta",
+          model_mode: "flash",
+          thinking_level: "high",
+          api_key_env: "DEEPSEEK_API_KEY"
+        }
+      }
     });
   });
 
@@ -163,11 +242,11 @@ limits = { rpm = 60, burst = 4 }
   });
 
   it("resolves providers declared with TOML inline tables", () => {
-    const resolved = resolveSeekForgeConfig({
+    const resolved = resolveOreCodeConfig({
       sources: [
         {
           scope: "project",
-          path: "/repo/.deepseek/config.toml",
+          path: "/repo/.ore-code/config.toml",
           status: "loaded",
           content: `
 provider = "local"

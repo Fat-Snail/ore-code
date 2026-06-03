@@ -19,11 +19,14 @@ import {
 } from "../services/appSettings";
 import {
   getConfigEnvSecret,
-  loadSeekForgeConfig,
+  loadOreCodeConfig,
   resolveProvider,
+  saveUserOreCodeConfig,
+  type ConfigFieldKey,
   type ProviderConfig,
-  type ResolvedSeekForgeConfig
-} from "../services/seekforgeConfig";
+  type ProviderConfigSources,
+  type ResolvedOreCodeConfig
+} from "../services/oreCodeConfig";
 import {
   deleteProviderSecret,
   getProviderSecret,
@@ -51,7 +54,7 @@ export function useProviderConfig() {
   const [deepSeekModelMode, setDeepSeekModelMode] = useState<DeepSeekModelMode>(DEFAULT_DEEPSEEK_MODEL_MODE);
   const [deepSeekBaseUrl, setDeepSeekBaseUrl] = useState(DEFAULT_DEEPSEEK_BASE_URL);
   const [deepSeekThinkingLevel, setDeepSeekThinkingLevel] = useState<DeepSeekThinkingLevel>(DEFAULT_DEEPSEEK_THINKING_LEVEL);
-  const [seekForgeConfig, setSeekForgeConfig] = useState<ResolvedSeekForgeConfig | null>(null);
+  const [oreCodeConfig, setOreCodeConfig] = useState<ResolvedOreCodeConfig | null>(null);
   const [configMessage, setConfigMessage] = useState<string | null>(null);
   const [providerError, setProviderError] = useState<string | null>(null);
   const [providerTestMessage, setProviderTestMessage] = useState<string | null>(null);
@@ -59,19 +62,19 @@ export function useProviderConfig() {
   const [secretMessage, setSecretMessage] = useState<string | null>(null);
 
   const providerOptions = useMemo(() => {
-    const configured = seekForgeConfig?.providers
+    const configured = oreCodeConfig?.providers
       .filter((item) => item.id !== "deepseek" && (DEVELOPER_HARNESS_ENABLED || item.id !== "mock"))
       .map((item) => ({ label: item.label, value: item.id })) ?? [];
     return uniqueProviderOptions([...baseProviderOptions, ...configured]);
-  }, [seekForgeConfig]);
+  }, [oreCodeConfig]);
 
   const selectedProviderConfig = useMemo(
-    () => resolveProvider(seekForgeConfig, provider),
-    [seekForgeConfig, provider]
+    () => resolveProvider(oreCodeConfig, provider),
+    [oreCodeConfig, provider]
   );
   const effectiveProviderConfig = useMemo(
-    () => effectiveConfiguredProvider(provider, selectedProviderConfig, deepSeekModel, deepSeekBaseUrl),
-    [deepSeekBaseUrl, deepSeekModel, provider, selectedProviderConfig]
+    () => effectiveConfiguredProvider(provider, selectedProviderConfig, deepSeekModel, deepSeekBaseUrl, oreCodeConfig?.providerConfigSources),
+    [deepSeekBaseUrl, deepSeekModel, oreCodeConfig?.providerConfigSources, provider, selectedProviderConfig]
   );
   const modelLabel = useMemo(() => {
     if (provider === "mock") {
@@ -80,17 +83,56 @@ export function useProviderConfig() {
     return configuredModelLabel(effectiveProviderConfig, provider, deepSeekModel);
   }, [deepSeekModel, effectiveProviderConfig, provider]);
   const effectiveDeepSeekModelMode = useMemo(
-    () => deepSeekModelMode === DEFAULT_DEEPSEEK_MODEL_MODE
+    () => isConfigFieldExternallyOverridden(oreCodeConfig?.providerConfigSources, "modelMode")
+      ? effectiveProviderConfig?.deepSeekModelMode ?? DEFAULT_DEEPSEEK_MODEL_MODE
+      : deepSeekModelMode === DEFAULT_DEEPSEEK_MODEL_MODE
       ? effectiveProviderConfig?.deepSeekModelMode ?? deepSeekModelMode
       : deepSeekModelMode,
-    [deepSeekModelMode, effectiveProviderConfig]
+    [deepSeekModelMode, effectiveProviderConfig, oreCodeConfig?.providerConfigSources]
   );
 
-  async function refreshSeekForgeConfig(path: string) {
-    const config = await loadSeekForgeConfig(path);
-    setSeekForgeConfig(config);
+  async function refreshOreCodeConfig(path: string) {
+    const config = await loadOreCodeConfig(path);
+    setOreCodeConfig(config);
+    syncProviderStateFromConfig(config);
     setConfigMessage(configSummary(config));
     return config;
+  }
+
+  async function persistUserOreCodeConfig(path: string) {
+    try {
+      setConfigMessage("正在保存用户配置...");
+      const config = await saveUserOreCodeConfig(path, {
+        providerId: provider,
+        model: deepSeekModel,
+        deepSeekModelMode,
+        baseUrl: deepSeekBaseUrl,
+        deepSeekThinkingLevel
+      });
+      setOreCodeConfig(config);
+      syncProviderStateFromConfig(config);
+      setConfigMessage(`${configSummary(config)} · 用户配置已保存`);
+      return config;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setConfigMessage(message);
+      throw error;
+    }
+  }
+
+  function syncProviderStateFromConfig(config: ResolvedOreCodeConfig) {
+    const nextProvider = config.providerId === "mock" && !DEVELOPER_HARNESS_ENABLED
+      ? DEFAULT_PROVIDER
+      : config.providerId;
+    const providerConfig = resolveProvider(config, nextProvider);
+    setProvider(nextProvider);
+    if (!providerConfig || providerConfig.id === "mock") {
+      return;
+    }
+    setDeepSeekModel(providerConfig.model || DEFAULT_DEEPSEEK_MODEL);
+    setDeepSeekBaseUrl(providerConfig.baseUrl || DEFAULT_DEEPSEEK_BASE_URL);
+    setDeepSeekModelMode(providerConfig.deepSeekModelMode ?? DEFAULT_DEEPSEEK_MODEL_MODE);
+    setDeepSeekThinkingLevel(providerConfig.deepSeekThinkingLevel ?? DEFAULT_DEEPSEEK_THINKING_LEVEL);
   }
 
   async function createLlmClient(userPrompt: string, options: CreateLlmClientOptions = {}): Promise<LlmClient | null> {
@@ -121,7 +163,9 @@ export function useProviderConfig() {
           ? providerConfig.model
           : modelForDeepSeekMode(effectiveDeepSeekModelMode)),
         baseUrl: providerConfig.baseUrl,
-        deepSeekThinkingLevel: deepSeekThinkingLevel === DEFAULT_DEEPSEEK_THINKING_LEVEL
+        deepSeekThinkingLevel: isConfigFieldExternallyOverridden(oreCodeConfig?.providerConfigSources, "thinkingLevel")
+          ? providerConfig.deepSeekThinkingLevel ?? DEFAULT_DEEPSEEK_THINKING_LEVEL
+          : deepSeekThinkingLevel === DEFAULT_DEEPSEEK_THINKING_LEVEL
           ? providerConfig.deepSeekThinkingLevel ?? deepSeekThinkingLevel
           : deepSeekThinkingLevel
       });
@@ -281,7 +325,7 @@ export function useProviderConfig() {
     setDeepSeekBaseUrl,
     deepSeekThinkingLevel,
     setDeepSeekThinkingLevel,
-    seekForgeConfig,
+    oreCodeConfig,
     configMessage,
     providerError,
     setProviderError,
@@ -295,7 +339,8 @@ export function useProviderConfig() {
     selectedProviderConfig,
     effectiveProviderConfig,
     modelLabel,
-    refreshSeekForgeConfig,
+    refreshOreCodeConfig,
+    persistUserOreCodeConfig,
     createLlmClient,
     createConfiguredProviderClient,
     resolveProviderApiKey,
@@ -335,7 +380,8 @@ export function effectiveConfiguredProvider(
   provider: string,
   config: ProviderConfig | null,
   deepSeekModel: string,
-  deepSeekBaseUrl: string
+  deepSeekBaseUrl: string,
+  sources?: ProviderConfigSources
 ): ProviderConfig | null {
   if (provider !== "deepseek") {
     return config;
@@ -343,17 +389,19 @@ export function effectiveConfiguredProvider(
 
   const uiModel = deepSeekModel.trim();
   const uiBaseUrl = deepSeekBaseUrl.trim();
+  const modelOverridden = isConfigFieldExternallyOverridden(sources, "model");
+  const baseUrlOverridden = isConfigFieldExternallyOverridden(sources, "baseUrl");
   return {
     id: "deepseek",
     label: "DeepSeek",
     kind: "openai-compatible",
     model:
-      uiModel && uiModel !== DEFAULT_DEEPSEEK_MODEL
+      !modelOverridden && uiModel && uiModel !== DEFAULT_DEEPSEEK_MODEL
         ? uiModel
         : config?.model || DEFAULT_DEEPSEEK_MODEL,
     deepSeekModelMode: config?.deepSeekModelMode ?? DEFAULT_DEEPSEEK_MODEL_MODE,
     baseUrl:
-      uiBaseUrl && uiBaseUrl !== DEFAULT_DEEPSEEK_BASE_URL
+      !baseUrlOverridden && uiBaseUrl && uiBaseUrl !== DEFAULT_DEEPSEEK_BASE_URL
         ? uiBaseUrl
         : config?.baseUrl || DEFAULT_DEEPSEEK_BASE_URL,
     apiKeyEnv: config?.apiKeyEnv || "DEEPSEEK_API_KEY",
@@ -371,7 +419,12 @@ export function configuredModelLabel(config: ProviderConfig | null, provider: st
   return providerLabel(provider);
 }
 
-export function configSummary(config: ResolvedSeekForgeConfig) {
+export function isConfigFieldExternallyOverridden(sources: ProviderConfigSources | undefined, field: ConfigFieldKey) {
+  const source = sources?.[field]?.source;
+  return source === "project" || source === "env";
+}
+
+export function configSummary(config: ResolvedOreCodeConfig) {
   const loaded = config.sources.filter((source) => source.status === "loaded").length;
   const warning = config.warnings.length ? `，${config.warnings.length} 个警告` : "";
   return `profile ${config.activeProfile} · provider ${config.providerId} · ${loaded} 个配置文件已加载${warning}`;
